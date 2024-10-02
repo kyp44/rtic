@@ -19,6 +19,7 @@ repository = "https://github.com/rtic-rs/rtic"
 [package.metadata.docs.rs]
 features = [
     "cortex-m-systick",
+    "atsamd51j",
     "rp2040",
     "rp235x",
     "nrf52840",
@@ -42,6 +43,9 @@ portable-atomic = { version = "1" }
 cfg-if = "1.0.0"
 cortex-m = { version = "0.7.6", optional = true }
 critical-section = { version = "1", optional = true }
+
+# ATSAMD
+atsamd51j = { version = "0.13", optional = true }
 
 # RP2040
 rp2040-pac = { version = "0.6", optional = true }
@@ -86,6 +90,9 @@ defmt = ["fugit/defmt"]
 cortex-m-systick = ["dep:cortex-m"]
 # Use 64-bit wide backing storage for the Instant
 systick-64bit = []
+
+# ATSAMD RTC
+atsamd51j = ["dep:cortex-m", "dep:atsamd51j", "dep:critical-section"]
 
 # Timer peripheral on the RP2040
 rp2040 = ["dep:cortex-m", "dep:rp2040-pac"]

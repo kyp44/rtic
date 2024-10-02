@@ -39,6 +39,9 @@ pub use rtic_time::{
     TimeoutError,
 };
 
+#[cfg(feature = "atsamd51j")]
+pub mod atsamd;
+
 #[cfg(feature = "esp32c3-systimer")]
 pub mod esp32c3;
 
@@ -77,6 +80,7 @@ pub(crate) const fn cortex_logical2hw(logical: u8, nvic_prio_bits: u8) -> u8 {
 }
 
 #[cfg(any(
+    // TODO: Is this needed for ATSAMD?
     feature = "rp235x",
     feature = "rp2040",
     feature = "nrf52805",

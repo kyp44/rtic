@@ -1,0 +1,19 @@
+[package]
+authors = ["Dan Whitman <dwhitman44@gmail.com>"]
+edition = "2021"
+name = "atsamd51j_blinky"
+version = "0.1.0"
+
+[dependencies]
+cortex-m = {version = "0.7.7", features = ["critical-section-single-core"]}
+pygamer = {version = "0.9.0", features = ["panic_led", "rt"]}
+rtic = {version = "2.1.1", features = ["thumbv7-backend"]}
+
+[profile.dev]
+debug = true 
+incremental = false 
+lto = "thin" # thin for debug speed
+
+[profile.release]
+lto = "fat"
+opt-level = 's'
