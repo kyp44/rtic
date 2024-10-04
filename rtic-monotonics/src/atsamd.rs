@@ -100,12 +100,12 @@ macro_rules! atsamd_rtc_monotonic {
     };
 }
 
-struct TimerValueU24(u32);
-impl rtic_time::half_period_counter::TimerValue for TimerValueU24 {
-    const BITS: u32 = 24;
+struct TimerValueU32(u32);
+impl rtic_time::half_period_counter::TimerValue for TimerValueU32 {
+    const BITS: u32 = 32;
 }
-impl From<TimerValueU24> for u64 {
-    fn from(value: TimerValueU24) -> Self {
+impl From<TimerValueU32> for u64 {
+    fn from(value: TimerValueU32) -> Self {
         Self::from(value.0)
     }
 }
@@ -128,7 +128,7 @@ macro_rules! make_rtc {
             ///
             /// Use the prelude macros instead.
             pub fn _start(rtc: $rtc) {
-                unsafe { rtc.prescaler.write(|w| w.bits(0)) };
+                unsafe { rtc.mode0().write(|w| w.bits(0)) };
 
                 // Disable interrupts, as preparation
                 rtc.intenclr.write(|w| w
