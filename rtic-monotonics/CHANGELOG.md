@@ -7,9 +7,20 @@ For each category, *Added*, *Changed*, *Fixed* add new entries at the top!
 
 ## Unreleased
 
+## v2.0.3 - 2024-10-23
+
 ### Added
 
 - RP235x support
+
+### Changed
+
+- Update `esp32c3` dependency
+
+### Fixed
+
+- STM32: Make initialization more deterministic
+- STM32: Fix race condition that caused missed interrupts
 
 ## v2.0.2 - 2024-07-05
 
