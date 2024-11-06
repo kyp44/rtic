@@ -7,7 +7,7 @@
 //! atsamd_rtc_monotonic!(Mono);
 //!
 //! fn init() {
-//! This is normally provided by the selected PAC
+//!     # // This is normally provided by the selected PAC
 //!     # let rtc = unsafe { core::mem::transmute(()) };
 //!     // Start the monotonic
 //!     Mono::start(rtc);
