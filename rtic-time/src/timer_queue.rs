@@ -18,6 +18,7 @@ struct WaitingWaker<Backend: TimerQueueBackend> {
     waker: Waker,
     release_at: Backend::Ticks,
     was_popped: AtomicBool,
+    debug: bool,
 }
 
 impl<Backend: TimerQueueBackend> Clone for WaitingWaker<Backend> {
@@ -26,6 +27,7 @@ impl<Backend: TimerQueueBackend> Clone for WaitingWaker<Backend> {
             waker: self.waker.clone(),
             release_at: self.release_at,
             was_popped: AtomicBool::new(self.was_popped.load(Ordering::Relaxed)),
+            debug: self.debug,
         }
     }
 }
@@ -115,6 +117,10 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
             match (head, release_at) {
                 (Some(link), _) => {
                     link.waker.wake();
+                    //if link.debug && link.release_at.into() > 0x18000 {
+                    if link.debug && link.release_at.into() > 0xFFFFFFFFFFFF {
+                        panic!("Waker called: {:X}", Backend::now().into());
+                    }
                 }
                 (None, Some(instant)) => {
                     Backend::enable_timer();
@@ -150,6 +156,7 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
                 queue: &self.queue,
                 link_ptr: None,
                 marker: AtomicUsize::new(0),
+                debug: false,
             },
             future,
         }
@@ -175,7 +182,7 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
 
     /// Delay for at least some duration of time.
     #[inline]
-    pub fn delay(&self, duration: Backend::Ticks) -> Delay<'_, Backend> {
+    pub fn delay(&self, duration: Backend::Ticks, debug: bool) -> Delay<'_, Backend> {
         let now = Backend::now();
         let mut timeout = now.wrapping_add(duration);
         if now != timeout {
@@ -184,11 +191,11 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
 
         // Wait for one period longer, because by definition timers have an uncertainty
         // of one period, so waiting for 'at least' needs to compensate for that.
-        self.delay_until(timeout)
+        self.delay_until(timeout, debug)
     }
 
     /// Delay to some specific time instant.
-    pub fn delay_until(&self, instant: Backend::Ticks) -> Delay<'_, Backend> {
+    pub fn delay_until(&self, instant: Backend::Ticks, debug: bool) -> Delay<'_, Backend> {
         if !self.initialized.load(Ordering::Relaxed) {
             panic!(
                 "The timer queue is not initialized with a monotonic, you need to run `initialize`"
@@ -199,6 +206,7 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
             queue: &self.queue,
             link_ptr: None,
             marker: AtomicUsize::new(0),
+            debug,
         }
     }
 }
@@ -209,6 +217,7 @@ pub struct Delay<'q, Backend: TimerQueueBackend> {
     queue: &'q LinkedList<WaitingWaker<Backend>>,
     link_ptr: Option<linked_list::Link<WaitingWaker<Backend>>>,
     marker: AtomicUsize,
+    debug: bool,
 }
 
 impl<Backend: TimerQueueBackend> Future for Delay<'_, Backend> {
@@ -230,6 +239,7 @@ impl<Backend: TimerQueueBackend> Future for Delay<'_, Backend> {
                 waker: cx.waker().clone(),
                 release_at: this.instant,
                 was_popped: AtomicBool::new(false),
+                debug: this.debug,
             }));
 
             // SAFETY(new_unchecked): The address to the link is stable as it is defined

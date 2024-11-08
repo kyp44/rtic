@@ -30,11 +30,27 @@ impl<T: TimerQueueBasedMonotonic> Monotonic for T {
     }
 
     async fn delay(duration: Self::Duration) {
-        T::Backend::timer_queue().delay(duration.ticks()).await
+        T::Backend::timer_queue()
+            .delay(duration.ticks(), false)
+            .await
+    }
+
+    async fn delay_debug(duration: Self::Duration) {
+        T::Backend::timer_queue()
+            .delay(duration.ticks(), true)
+            .await
     }
 
     async fn delay_until(instant: Self::Instant) {
-        T::Backend::timer_queue().delay_until(instant.ticks()).await
+        T::Backend::timer_queue()
+            .delay_until(instant.ticks(), false)
+            .await
+    }
+
+    async fn delay_until_debug(instant: Self::Instant) {
+        T::Backend::timer_queue()
+            .delay_until(instant.ticks(), true)
+            .await
     }
 
     async fn timeout_at<F: core::future::Future>(
