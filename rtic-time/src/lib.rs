@@ -47,8 +47,14 @@ pub trait Monotonic {
     /// Delay for some duration of time.
     async fn delay(duration: Self::Duration);
 
+    /// Delay for some duration of time DEBUG
+    async fn delay_debug(duration: Self::Duration);
+
     /// Delay to some specific time instant.
     async fn delay_until(instant: Self::Instant);
+
+    /// Delay to some specific time instant.
+    async fn delay_until_debug(instant: Self::Instant);
 
     /// Timeout at a specific time.
     async fn timeout_at<F: core::future::Future>(
