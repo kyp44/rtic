@@ -18,7 +18,7 @@ struct WaitingWaker<Backend: TimerQueueBackend> {
     waker: Waker,
     release_at: Backend::Ticks,
     was_popped: AtomicBool,
-    debug: bool,
+    debug: Option<u8>,
 }
 
 impl<Backend: TimerQueueBackend> Clone for WaitingWaker<Backend> {
@@ -104,6 +104,7 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
         Backend::on_interrupt();
 
         loop {
+            let now = Backend::now().into();
             let mut release_at = None;
             let head = self.queue.pop_if(|head| {
                 release_at = Some(head.release_at);
@@ -111,16 +112,48 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
                 let should_pop = Backend::now().is_at_least(head.release_at);
                 head.was_popped.store(should_pop, Ordering::Relaxed);
 
+                /* if let Some(n) = head.debug
+                    && now > 0x10000
+                {
+                    panic!("Error occurred with critical task {n}: {now:X} {should_pop}");
+                } */
+
+                /* if let Some(0) = debug
+                    && now > 0x7FFE
+                {
+                    panic!(
+                        "What are we doing here? {now:X} {:X} {should_pop}",
+                        head.release_at.into()
+                    );
+                } */
+
+                /* if let Some(n) = head.debug
+                    && now > 0x7FF0
+                    && should_pop
+                {
+                    panic!(
+                        "Task {n} is popped off first at {:X}, now {now:X}!",
+                        head.release_at.into()
+                    );
+                } */
+
                 should_pop
             });
 
             match (head, release_at) {
                 (Some(link), _) => {
+                    static mut wtf: usize = 0;
                     link.waker.wake();
-                    //if link.debug && link.release_at.into() > 0x18000 {
-                    if link.debug && link.release_at.into() > 0xFFFFFFFFFFFF {
-                        panic!("Waker called: {:X}", Backend::now().into());
-                    }
+
+                    /* if let Some(0) = debug {
+                        unsafe {
+                            wtf += 1;
+                        }
+                        if wtf > 1 {
+                            //panic!("Woken, so whats the damn problem?");
+                            panic!("Woken twice! Is that the problem?");
+                        }
+                    } */
                 }
                 (None, Some(instant)) => {
                     Backend::enable_timer();
@@ -131,6 +164,12 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
                         // continue dequeueing
                         continue;
                     }
+
+                    /* if let Some(n) = debug
+                        && now > 0x7FFE
+                    {
+                        panic!("TODO HERE DIFF {n} {:X} {now:X}", instant.into());
+                    } */
 
                     break;
                 }
@@ -156,7 +195,7 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
                 queue: &self.queue,
                 link_ptr: None,
                 marker: AtomicUsize::new(0),
-                debug: false,
+                debug: None,
             },
             future,
         }
@@ -182,7 +221,7 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
 
     /// Delay for at least some duration of time.
     #[inline]
-    pub fn delay(&self, duration: Backend::Ticks, debug: bool) -> Delay<'_, Backend> {
+    pub fn delay(&self, duration: Backend::Ticks, debug: Option<u8>) -> Delay<'_, Backend> {
         let now = Backend::now();
         let mut timeout = now.wrapping_add(duration);
         if now != timeout {
@@ -195,7 +234,7 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
     }
 
     /// Delay to some specific time instant.
-    pub fn delay_until(&self, instant: Backend::Ticks, debug: bool) -> Delay<'_, Backend> {
+    pub fn delay_until(&self, instant: Backend::Ticks, debug: Option<u8>) -> Delay<'_, Backend> {
         if !self.initialized.load(Ordering::Relaxed) {
             panic!(
                 "The timer queue is not initialized with a monotonic, you need to run `initialize`"
@@ -217,7 +256,7 @@ pub struct Delay<'q, Backend: TimerQueueBackend> {
     queue: &'q LinkedList<WaitingWaker<Backend>>,
     link_ptr: Option<linked_list::Link<WaitingWaker<Backend>>>,
     marker: AtomicUsize,
-    debug: bool,
+    debug: Option<u8>,
 }
 
 impl<Backend: TimerQueueBackend> Future for Delay<'_, Backend> {
@@ -227,8 +266,24 @@ impl<Backend: TimerQueueBackend> Future for Delay<'_, Backend> {
         // SAFETY: We ensure we never move anything out of this.
         let this = unsafe { self.get_unchecked_mut() };
 
-        if Backend::now().is_at_least(this.instant) {
+        let now = Backend::now();
+        let care = if let Some(0) = this.debug
+            && now.into() > 0x7000
+        {
+            true
+        } else {
+            false
+        };
+
+        if now.is_at_least(this.instant) {
+            /* if care {
+                panic!("Polled!");
+            } */
             return Poll::Ready(());
+        } else {
+            /*  if care {
+                panic!("NOT time yet! {:X}", now.into());
+            } */
         }
 
         // SAFETY: this is dereferenced only here and in `drop`. As the queue deletion is done only
