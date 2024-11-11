@@ -6,6 +6,7 @@
 #![no_std]
 #![deny(missing_docs)]
 #![allow(async_fn_in_trait)]
+#![feature(let_chains)]
 
 pub mod half_period_counter;
 mod linked_list;
@@ -48,13 +49,13 @@ pub trait Monotonic {
     async fn delay(duration: Self::Duration);
 
     /// Delay for some duration of time DEBUG
-    async fn delay_debug(duration: Self::Duration);
+    async fn delay_debug(duration: Self::Duration, id: u8);
 
     /// Delay to some specific time instant.
     async fn delay_until(instant: Self::Instant);
 
     /// Delay to some specific time instant.
-    async fn delay_until_debug(instant: Self::Instant);
+    async fn delay_until_debug(instant: Self::Instant, id: u8);
 
     /// Timeout at a specific time.
     async fn timeout_at<F: core::future::Future>(

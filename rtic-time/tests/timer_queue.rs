@@ -124,7 +124,7 @@ fn timer_queue() {
                 peripheral::wait_until(start + pre_delay).await;
             }
 
-            TestMonoBackend::timer_queue().delay(delay).await;
+            TestMonoBackend::timer_queue().delay(delay, None).await;
 
             let elapsed = peripheral::now() - start;
             println!("{total} ticks delay reached after {elapsed} ticks");
