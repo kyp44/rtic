@@ -27,7 +27,7 @@ pub trait TimerQueueTicks: Copy + PartialEq + Eq + Into<u64> {
     fn wrapping_add(self, other: Self) -> Self;
 }
 
-/* impl TimerQueueTicks for u32 {
+impl TimerQueueTicks for u32 {
     const ONE_TICK: Self = 1;
 
     fn compare(self, other: Self) -> cmp::Ordering {
@@ -36,7 +36,7 @@ pub trait TimerQueueTicks: Copy + PartialEq + Eq + Into<u64> {
     fn wrapping_add(self, other: Self) -> Self {
         u32::wrapping_add(self, other)
     }
-} */
+}
 impl TimerQueueTicks for u64 {
     const ONE_TICK: Self = 1;
 

@@ -112,19 +112,19 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
                 let should_pop = Backend::now().is_at_least(head.release_at);
                 head.was_popped.store(should_pop, Ordering::Relaxed);
 
+                /* if let Some(id) = head.debug
+                    && now > 1536
+                {
+                    panic!(
+                        "Next task up: ID: {id} now: 0x{now:X} next: 0x{:X} pop? {should_pop}",
+                        head.release_at.into()
+                    );
+                } */
+
                 /* if let Some(n) = head.debug
                     && now > 0x10000
                 {
                     panic!("Error occurred with critical task {n}: {now:X} {should_pop}");
-                } */
-
-                /* if let Some(0) = debug
-                    && now > 0x7FFE
-                {
-                    panic!(
-                        "What are we doing here? {now:X} {:X} {should_pop}",
-                        head.release_at.into()
-                    );
                 } */
 
                 /* if let Some(n) = head.debug
@@ -142,17 +142,15 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
 
             match (head, release_at) {
                 (Some(link), _) => {
-                    static mut wtf: usize = 0;
                     link.waker.wake();
-
-                    /* if let Some(0) = debug {
-                        unsafe {
-                            wtf += 1;
-                        }
-                        if wtf > 1 {
-                            //panic!("Woken, so whats the damn problem?");
-                            panic!("Woken twice! Is that the problem?");
-                        }
+                    /*
+                    if let Some(id) = link.debug
+                        && now > 1536
+                    {
+                        panic!(
+                            "Task {id} awoken! now: 0x{now:X} next: 0x{:X}",
+                            link.release_at.into()
+                        );
                     } */
                 }
                 (None, Some(instant)) => {
@@ -195,6 +193,7 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
                 queue: &self.queue,
                 link_ptr: None,
                 marker: AtomicUsize::new(0),
+                times_polled: AtomicUsize::new(0),
                 debug: None,
             },
             future,
@@ -245,6 +244,7 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
             queue: &self.queue,
             link_ptr: None,
             marker: AtomicUsize::new(0),
+            times_polled: AtomicUsize::new(0),
             debug,
         }
     }
@@ -256,6 +256,7 @@ pub struct Delay<'q, Backend: TimerQueueBackend> {
     queue: &'q LinkedList<WaitingWaker<Backend>>,
     link_ptr: Option<linked_list::Link<WaitingWaker<Backend>>>,
     marker: AtomicUsize,
+    times_polled: AtomicUsize,
     debug: Option<u8>,
 }
 
@@ -266,24 +267,43 @@ impl<Backend: TimerQueueBackend> Future for Delay<'_, Backend> {
         // SAFETY: We ensure we never move anything out of this.
         let this = unsafe { self.get_unchecked_mut() };
 
+        //this.times_polled.fetch_add(1, Ordering::Relaxed);
+
         let now = Backend::now();
-        let care = if let Some(0) = this.debug
-            && now.into() > 0x7000
+
+        if let Some(id) = this.debug
+        //&& now.into() > 1536
+        && now.into() > 31
         {
-            true
-        } else {
-            false
-        };
+            panic!(
+                "Task {id} has been polled! now: 0x{:X} next: 0x{:X}",
+                now.into(),
+                this.instant.into()
+            );
+        }
 
         if now.is_at_least(this.instant) {
-            /* if care {
-                panic!("Polled!");
-            } */
+            if let Some(id) = this.debug
+                && now.into() > 1536
+            {
+                panic!(
+                    "Task {id} ready! now: 0x{:X} next: 0x{:X}",
+                    now.into(),
+                    this.instant.into()
+                );
+            }
+
             return Poll::Ready(());
-        } else {
-            /*  if care {
-                panic!("NOT time yet! {:X}", now.into());
-            } */
+        }
+
+        if let Some(id) = this.debug
+            && this.times_polled.load(Ordering::Relaxed) > 1
+        {
+            panic!(
+                "Task {id} popped off but not ready! Now: 0x{:X} Instant: 0x{:X}",
+                now.into(),
+                this.instant.into()
+            );
         }
 
         // SAFETY: this is dereferenced only here and in `drop`. As the queue deletion is done only
