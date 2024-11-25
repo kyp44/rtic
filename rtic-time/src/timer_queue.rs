@@ -13,6 +13,12 @@ mod tick_type;
 pub use backend::TimerQueueBackend;
 pub use tick_type::TimerQueueTicks;
 
+/// Time: 1.5 sec
+// SysTick
+//const CRITICAL_TICKS: u64 = 300;
+// Mode 0
+const CRITICAL_TICKS: u64 = 1536;
+
 /// Holds a waker and at which time instant this waker shall be awoken.
 struct WaitingWaker<Backend: TimerQueueBackend> {
     waker: Waker,
@@ -103,8 +109,10 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
         Backend::clear_compare_flag();
         Backend::on_interrupt();
 
+        let now = Backend::now().into();
+        let mut awoken = None;
+
         loop {
-            let now = Backend::now().into();
             let mut release_at = None;
             let head = self.queue.pop_if(|head| {
                 release_at = Some(head.release_at);
@@ -113,26 +121,10 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
                 head.was_popped.store(should_pop, Ordering::Relaxed);
 
                 /* if let Some(id) = head.debug
-                    && now > 1536
+                    && now > CRITICAL_TICKS
                 {
                     panic!(
                         "Next task up: ID: {id} now: 0x{now:X} next: 0x{:X} pop? {should_pop}",
-                        head.release_at.into()
-                    );
-                } */
-
-                /* if let Some(n) = head.debug
-                    && now > 0x10000
-                {
-                    panic!("Error occurred with critical task {n}: {now:X} {should_pop}");
-                } */
-
-                /* if let Some(n) = head.debug
-                    && now > 0x7FF0
-                    && should_pop
-                {
-                    panic!(
-                        "Task {n} is popped off first at {:X}, now {now:X}!",
                         head.release_at.into()
                     );
                 } */
@@ -143,9 +135,11 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
             match (head, release_at) {
                 (Some(link), _) => {
                     link.waker.wake();
-                    /*
-                    if let Some(id) = link.debug
-                        && now > 1536
+
+                    awoken = link.debug;
+
+                    /* if let Some(id) = link.debug
+                        && now > CRITICAL_TICKS
                     {
                         panic!(
                             "Task {id} awoken! now: 0x{now:X} next: 0x{:X}",
@@ -163,12 +157,6 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
                         continue;
                     }
 
-                    /* if let Some(n) = debug
-                        && now > 0x7FFE
-                    {
-                        panic!("TODO HERE DIFF {n} {:X} {now:X}", instant.into());
-                    } */
-
                     break;
                 }
                 (None, None) => {
@@ -179,6 +167,14 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
                 }
             }
         }
+
+        /* if Backend::now().into() > CRITICAL_TICKS {
+            if let Some(id) = awoken {
+                panic!("Done with loop, task {id} was awoken: 0x{now:X}");
+            } else {
+                panic!("Done with loop: 0x{now:X}");
+            }
+        } */
     }
 
     /// Timeout at a specific time.
@@ -267,16 +263,15 @@ impl<Backend: TimerQueueBackend> Future for Delay<'_, Backend> {
         // SAFETY: We ensure we never move anything out of this.
         let this = unsafe { self.get_unchecked_mut() };
 
-        //this.times_polled.fetch_add(1, Ordering::Relaxed);
+        this.times_polled.fetch_add(1, Ordering::Relaxed);
 
         let now = Backend::now();
 
         if let Some(id) = this.debug
-        //&& now.into() > 1536
-        && now.into() > 31
+            && now.into() > CRITICAL_TICKS
         {
             panic!(
-                "Task {id} has been polled! now: 0x{:X} next: 0x{:X}",
+                "Task {id} was polled! now: 0x{:X} next: 0x{:X}",
                 now.into(),
                 this.instant.into()
             );
@@ -284,7 +279,7 @@ impl<Backend: TimerQueueBackend> Future for Delay<'_, Backend> {
 
         if now.is_at_least(this.instant) {
             if let Some(id) = this.debug
-                && now.into() > 1536
+                && now.into() > CRITICAL_TICKS
             {
                 panic!(
                     "Task {id} ready! now: 0x{:X} next: 0x{:X}",
@@ -319,7 +314,7 @@ impl<Backend: TimerQueueBackend> Future for Delay<'_, Backend> {
 
             // SAFETY(new_unchecked): The address to the link is stable as it is defined
             // outside this stack frame.
-            // SAFETY(insert): `link_ref` lfetime comes from `link_ptr` which itself is owned by
+            // SAFETY(insert): `link_ref` lifetime comes from `link_ptr` which itself is owned by
             // the `Delay` struct. The `Delay::drop` impl ensures that the link is removed from the
             // queue on drop, which happens before the struct and thus `link_ptr` goes out of
             // scope.
