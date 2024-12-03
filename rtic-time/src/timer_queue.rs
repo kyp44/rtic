@@ -17,7 +17,9 @@ pub use tick_type::TimerQueueTicks;
 // SysTick
 //const CRITICAL_TICKS: u64 = 300;
 // Mode 0
-const CRITICAL_TICKS: u64 = 1536;
+//const CRITICAL_TICKS: u64 = 1536;
+// Mode 1
+const CRITICAL_TICKS: u64 = 49152;
 
 /// Holds a waker and at which time instant this waker shall be awoken.
 struct WaitingWaker<Backend: TimerQueueBackend> {
@@ -109,22 +111,23 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
         Backend::clear_compare_flag();
         Backend::on_interrupt();
 
-        let now = Backend::now().into();
-        let mut awoken = None;
-
         loop {
             let mut release_at = None;
             let head = self.queue.pop_if(|head| {
                 release_at = Some(head.release_at);
 
-                let should_pop = Backend::now().is_at_least(head.release_at);
+                let now = Backend::now();
+                let should_pop = now.is_at_least(head.release_at);
                 head.was_popped.store(should_pop, Ordering::Relaxed);
 
                 /* if let Some(id) = head.debug
-                    && now > CRITICAL_TICKS
+                    && id == 4
+                    && should_pop
+                    && now.into() > CRITICAL_TICKS
                 {
                     panic!(
-                        "Next task up: ID: {id} now: 0x{now:X} next: 0x{:X} pop? {should_pop}",
+                        "Next task up: ID: {id} now: 0x{:X} release_at: 0x{:X} pop? {should_pop}",
+                        now.into(),
                         head.release_at.into()
                     );
                 } */
@@ -135,8 +138,6 @@ impl<Backend: TimerQueueBackend> TimerQueue<Backend> {
             match (head, release_at) {
                 (Some(link), _) => {
                     link.waker.wake();
-
-                    awoken = link.debug;
 
                     /* if let Some(id) = link.debug
                         && now > CRITICAL_TICKS
@@ -267,35 +268,33 @@ impl<Backend: TimerQueueBackend> Future for Delay<'_, Backend> {
 
         let now = Backend::now();
 
-        if let Some(id) = this.debug
-            && now.into() > CRITICAL_TICKS
-        {
+        /* if let Some(id) = this.debug {
             panic!(
                 "Task {id} was polled! now: 0x{:X} next: 0x{:X}",
                 now.into(),
                 this.instant.into()
             );
-        }
+        } */
 
         if now.is_at_least(this.instant) {
-            if let Some(id) = this.debug
-                && now.into() > CRITICAL_TICKS
+            /* if let Some(id) = this.debug
             {
                 panic!(
                     "Task {id} ready! now: 0x{:X} next: 0x{:X}",
                     now.into(),
                     this.instant.into()
                 );
-            }
+            } */
 
             return Poll::Ready(());
         }
 
         if let Some(id) = this.debug
+            && id == 4
             && this.times_polled.load(Ordering::Relaxed) > 1
         {
             panic!(
-                "Task {id} popped off but not ready! Now: 0x{:X} Instant: 0x{:X}",
+                "Task {id} was polled but not ready twice! Now: 0x{:X} Instant: 0x{:X}",
                 now.into(),
                 this.instant.into()
             );
