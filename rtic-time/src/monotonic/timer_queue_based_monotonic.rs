@@ -35,7 +35,7 @@ impl<T: TimerQueueBasedMonotonic> Monotonic for T {
             .await
     }
 
-    async fn delay_debug(duration: Self::Duration, id: u8) {
+    async fn delay_debug(duration: Self::Duration, id: u32) {
         T::Backend::timer_queue()
             .delay(duration.ticks(), Some(id))
             .await
@@ -47,7 +47,7 @@ impl<T: TimerQueueBasedMonotonic> Monotonic for T {
             .await
     }
 
-    async fn delay_until_debug(instant: Self::Instant, id: u8) {
+    async fn delay_until_debug(instant: Self::Instant, id: u32) {
         T::Backend::timer_queue()
             .delay_until(instant.ticks(), Some(id))
             .await
